@@ -150,7 +150,7 @@ export default function App() {
 
   // Terminal history strings
   const [attackLog, setAttackLog] = useState<string[]>([
-    "🐸 BOILING FROG NDR Attack Simulator Initialized.",
+    "🌀 DRIFT WATCH NDR Attack Simulator Initialized.",
     "░ System idling. Select a simulation profile above to target listeners."
   ]);
   const [detectionLog, setDetectionLog] = useState<string[]>([
@@ -558,7 +558,7 @@ export default function App() {
             <span className="text-xl">🐸</span>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-100 text-sm tracking-tight uppercase">Boiling Frog NDR</span>
+                <span className="font-bold text-slate-100 text-sm tracking-tight uppercase">Drift Watch NDR</span>
                 <span className="text-[9px] px-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded">TAPESTRY v4.1</span>
               </div>
             </div>
@@ -611,7 +611,7 @@ export default function App() {
                 {isLiveBridgeConnected ? (
                   <>
                     <span className={`w-2 h-2 rounded-full ${livePacketsCount > 0 ? "bg-cyan-400 animate-pulse" : "bg-emerald-500"}`} />
-                    <span className={`${livePacketsCount > 0 ? "text-cyan-400" : "text-emerald-400"} uppercase`} title="Streaming live captures from boiling_frog_listener.py">
+                    <span className={`${livePacketsCount > 0 ? "text-cyan-400" : "text-emerald-400"} uppercase`} title="Streaming live captures from drift_watch_listener.py">
                       {livePacketsCount > 0 ? `STREAMING (${livePacketsCount} PKTS)` : "LISTENING"}
                     </span>
                   </>
@@ -971,7 +971,7 @@ export default function App() {
       {/* PERSISTENT FOOTER BAR */}
       <footer className="border-t border-[#1F2937]/50 py-6 px-6 bg-[#05080c]/80 backdrop-blur-md text-center font-mono text-[10px] text-slate-500 mt-auto select-text">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <p>© 2026 Boiling Frog Security Project • Implementation Testimony Chimberengwa R236592N</p>
+          <p>© 2026 Drift Watch Security Project • Implementation Testimony Chimberengwa R236592N</p>
           <div className="flex items-center gap-4">
             <span className="text-slate-500">BSc Computer Engineering • Academic Internship Testbed</span>
             <div className="flex gap-2">

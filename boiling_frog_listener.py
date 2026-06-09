@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BOILING FROG — HDT Live Detection Monitor with socket/promiscuous modes."""
+"""DRIFT WATCH — HDT Live Detection Monitor with socket/promiscuous modes."""
 
 import socket
 import threading
@@ -146,7 +146,7 @@ def ask_capture_mode():
     global ACTIVE_MODE
     print(f"""
 {GREEN}{BOLD}╔══════════════════════════════════════════════════════════════════════════════╗
-║                         🐸 BOILING FROG STARTUP                             ║
+║                         🌀 DRIFT WATCH STARTUP                             ║
 ╚══════════════════════════════════════════════════════════════════════════════╝{RESET}
 
 {BOLD}Run in promiscuous mode?{RESET} {DIM}(captures ALL traffic like Wireshark){RESET}
@@ -225,7 +225,7 @@ def display_connection(conn, scores, engine, attack_type):
     ac = alert_colour(scores.alert); type_colour, symbol = type_style(attack_type); width = 94
     if scores.alert == "HIGH":
         print(f"\n{RED}{BOLD}" + "█" * term_width(width) + RESET)
-        print(f"{RED}{BOLD}█  HIGH ALERT — BOILING FROG DETECTION THRESHOLD REACHED".ljust(term_width(width)-5) + f"█{RESET}")
+        print(f"{RED}{BOLD}█  HIGH ALERT — DRIFT WATCH DETECTION THRESHOLD REACHED".ljust(term_width(width)-5) + f"█{RESET}")
         print(f"{RED}{BOLD}" + "█" * term_width(width) + RESET)
 
     print(f"\n{ac}{BOLD}╔" + "═" * width + f"╗{RESET}")
@@ -311,7 +311,7 @@ def rolling_summary():
 
 def final_report():
     print(f"\n\n {BOLD}{'═' * 76}{RESET}")
-    print(f" {BOLD}◈ BOILING FROG — SESSION REPORT ◈{RESET}")
+    print(f" {BOLD}◈ DRIFT WATCH — SESSION REPORT ◈{RESET}")
     print(f" {'═' * 76}")
     print(f" Session uptime      : {uptime()}")
     print(f" Active mode         : {ACTIVE_MODE}")

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇 汇
-                     🐸  BOILING FROG  —  ATTACK SIMULATOR                      
+                     🌀  DRIFT WATCH  —  ATTACK SIMULATOR                      
                           Slow & Low Intensity Attack Testbed                    
                                                                                 
                           Testimony Chimberengwa R236592N                             
@@ -217,7 +217,7 @@ def print_menu():
     print(f"""
 {RED}{BOLD}╔══════════════════════════════════════════════════════════════════════════════╗
 ║                                                                              ║
-║    🐸  BOILING FROG  —  ATTACK SIMULATOR                                    ║
+║    🌀  DRIFT WATCH  —  ATTACK SIMULATOR                                    ║
 ║        Slow & Low Intensity Attack Testbed                                   ║
 ║                                                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════╝{RESET}
@@ -244,7 +244,7 @@ def main():
         t.close()
     except ConnectionRefusedError:
         print(f"\n  {RED}✖  Cannot reach {TARGET_HOST}:5001{RESET}")
-        print(f"  Make sure boiling_frog_listener.py is running first.\n")
+        print(f"  Make sure drift_watch_listener.py is running first.\n")
         sys.exit(1)
     except Exception:
         pass

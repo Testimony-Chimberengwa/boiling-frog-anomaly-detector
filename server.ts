@@ -412,7 +412,7 @@ async function startServer() {
     try {
       const { ip, scores } = req.body;
       
-      const prompt = `Analyze this security alert from Boiling Frog NDR.
+      const prompt = `Analyze this security alert from Drift Watch NDR.
 Entity IP: ${ip}
 Evaluation parameters:
 - L1 GMM Anomaly (sudden volumetric changes): ${scores.l1_gmm.toFixed(4)}
