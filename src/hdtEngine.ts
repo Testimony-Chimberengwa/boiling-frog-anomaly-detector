@@ -6,17 +6,26 @@
 import { ConnectionRecord, HDTScores, ThreatLevel } from "./types";
 
 export class HDTEngine {
-  // L1 GMM parameters
+  // ========== L1 GMM TUNABLE PARAMETERS ==========
   public mean: number = 75000; // Expected normal packet size (~75 KB)
   public variance: number = 20000 * 20000; // Std dev is ~20 KB
   public lambda: number = 0.05; // Forgetting factor for adaptation
+  public kComponents: number = 3; // Number of GMM components
+  public minObsBeforeScoring: number = 8; // Min connections before L1 produces scores
 
   // L2 KDE parameters & tracking
   private recentPorts: { port: number; size: number; time: number }[] = [];
+  public kdeObservationWindow: number = 60; // Number of recent observations for density
+  public scottsRuleMultiplier: number = 1.0; // Bandwidth scale
+  public portDiversityThreshold: number = 3; // Distinct ports to trigger sweep
+  public sweepDetectionWindow: number = 30; // Seconds for port history
   
   // L3 LOWESS rolling window
   private recentSizes: number[] = [];
   public lowess_slope: number = 0;
+  public lowessSmoothing: number = 0.40; // Fraction for local regression
+  public lowessTrendWindow: number = 20; // Number of observations for trend
+  public lowessMinObservations: number = 6; // Min obs before trend scoring
 
   // ADS Sentinel Anchors
   public isAnchored: boolean = false;
@@ -24,6 +33,15 @@ export class HDTEngine {
   public anchorVariance: number = 20000 * 20000;
   public gmm_drift: number = 0;
   public ads: number = 0;
+  public driftThreshold: number = 0.30; // L2 norm drift from anchor
+  public anchorObservationCount: number = 10; // Clean obs before anchor snapshot
+  public anchorSetTime: number = 0; // Timestamp when anchor was set
+
+  // Fusion Engine weights
+  public w1_gmm: number = 0.25;
+  public w2_kde: number = 0.35;
+  public w3_lowess: number = 0.25;
+  public w4_ads: number = 0.15;
 
   // Global counts
   public obsCount: number = 0;
@@ -36,15 +54,80 @@ export class HDTEngine {
   public reset() {
     this.mean = 75000;
     this.variance = 20000 * 20000;
+    this.lambda = 0.05;
+    this.kComponents = 3;
+    this.minObsBeforeScoring = 8;
     this.recentPorts = [];
+    this.kdeObservationWindow = 60;
+    this.scottsRuleMultiplier = 1.0;
+    this.portDiversityThreshold = 3;
+    this.sweepDetectionWindow = 30;
     this.recentSizes = [];
     this.lowess_slope = 0;
+    this.lowessSmoothing = 0.40;
+    this.lowessTrendWindow = 20;
+    this.lowessMinObservations = 6;
     this.isAnchored = false;
     this.anchorMean = 75000;
     this.anchorVariance = 20000 * 20000;
     this.gmm_drift = 0;
     this.ads = 0;
+    this.driftThreshold = 0.30;
+    this.anchorObservationCount = 10;
+    this.anchorSetTime = 0;
+    this.w1_gmm = 0.25;
+    this.w2_kde = 0.35;
+    this.w3_lowess = 0.25;
+    this.w4_ads = 0.15;
     this.obsCount = 0;
+  }
+
+  /**
+   * Update engine parameters from the control room
+   */
+  public updateParameters(params: Partial<{
+    lambda: number;
+    kComponents: number;
+    minObsBeforeScoring: number;
+    kdeObservationWindow: number;
+    scottsRuleMultiplier: number;
+    portDiversityThreshold: number;
+    sweepDetectionWindow: number;
+    lowessSmoothing: number;
+    lowessTrendWindow: number;
+    lowessMinObservations: number;
+    driftThreshold: number;
+    anchorObservationCount: number;
+    w1_gmm: number;
+    w2_kde: number;
+    w3_lowess: number;
+    w4_ads: number;
+  }>) {
+    Object.assign(this, params);
+  }
+
+  /**
+   * Get all current parameters as a snapshot
+   */
+  public getParameters() {
+    return {
+      lambda: this.lambda,
+      kComponents: this.kComponents,
+      minObsBeforeScoring: this.minObsBeforeScoring,
+      kdeObservationWindow: this.kdeObservationWindow,
+      scottsRuleMultiplier: this.scottsRuleMultiplier,
+      portDiversityThreshold: this.portDiversityThreshold,
+      sweepDetectionWindow: this.sweepDetectionWindow,
+      lowessSmoothing: this.lowessSmoothing,
+      lowessTrendWindow: this.lowessTrendWindow,
+      lowessMinObservations: this.lowessMinObservations,
+      driftThreshold: this.driftThreshold,
+      anchorObservationCount: this.anchorObservationCount,
+      w1_gmm: this.w1_gmm,
+      w2_kde: this.w2_kde,
+      w3_lowess: this.w3_lowess,
+      w4_ads: this.w4_ads,
+    };
   }
 
   /**
@@ -53,6 +136,7 @@ export class HDTEngine {
   public setAnchor() {
     this.anchorMean = this.mean;
     this.anchorVariance = this.variance;
+    this.anchorSetTime = Date.now();
     this.isAnchored = true;
   }
 
@@ -88,7 +172,7 @@ export class HDTEngine {
     // ---------------------------------------------------------
     // Adds incoming ports into short-term memory to detect horizontal sweep behavior
     this.recentPorts.push({ port: conn.dstPort, size: x, time: now });
-    if (this.recentPorts.length > 15) {
+    if (this.recentPorts.length > this.kdeObservationWindow) {
       this.recentPorts.shift();
     }
 
@@ -97,30 +181,30 @@ export class HDTEngine {
     const smallPackets = this.recentPorts.filter(p => p.size < 5000); // Small scans
 
     let l2_kde = 0;
-    if (distinctPorts.size >= 3) {
+    if (distinctPorts.size >= this.portDiversityThreshold) {
       // Calculate diversity ratio
-      const portDiversityRatio = distinctPorts.size / this.recentPorts.length; // e.g., 10 / 10 = 1.0 (very sweepy)
+      const portDiversityRatio = distinctPorts.size / this.recentPorts.length;
       const tinyRatio = smallPackets.length / this.recentPorts.length;
       
       // Horizontal sweeps consist of scanning many distinct ports with tiny packets
       l2_kde = Math.min(1.0, portDiversityRatio * 0.5 + tinyRatio * 0.5);
     } else {
       // Normal localized traffic remains low density score
-      l2_kde = 0.05 * (distinctPorts.size / 3);
+      l2_kde = 0.05 * (distinctPorts.size / this.portDiversityThreshold);
     }
 
     // ---------------------------------------------------------
     // LAYER 3: LOWESS Volume Trend / Gradient Analyzer
     // ---------------------------------------------------------
-    // Store recent sizes in a rolling window of 10 samples
+    // Store recent sizes in a rolling window of specified size
     this.recentSizes.push(x);
-    if (this.recentSizes.length > 10) {
+    if (this.recentSizes.length > this.lowessTrendWindow) {
       this.recentSizes.shift();
     }
 
     // Calculate linear regression slope to represent LOWESS gradient
     // This watches for gradual slope ascension (escalating MB volume)
-    if (this.recentSizes.length >= 4) {
+    if (this.recentSizes.length >= this.lowessMinObservations) {
       const n = this.recentSizes.length;
       let sumX = 0;
       let sumY = 0;
@@ -154,13 +238,15 @@ export class HDTEngine {
     // ---------------------------------------------------------
     // LAYER ADS: Adversarial Drift Sentinel (Poisoning Sentinel)
     // ---------------------------------------------------------
+    let ads = 0;
     if (this.isAnchored) {
       // Compare adapted GMM mean shift relative to anchored baseline snapshot
       // If the mean has been slowly pulled away from original baseline, trigger
       this.gmm_drift = Math.abs(this.mean - this.anchorMean) / this.anchorMean;
       
-      // If GMM baseline has drifted more than 15%, highlight as poisoning
-      this.ads = Math.min(1.0, Math.max(0.0, (this.gmm_drift - 0.08) / 0.15));
+      // If GMM baseline has drifted more than threshold, highlight as poisoning
+      ads = Math.min(1.0, Math.max(0.0, (this.gmm_drift - 0.08) / (this.driftThreshold || 0.15)));
+      this.ads = ads;
     } else {
       this.gmm_drift = 0;
       this.ads = 0;
@@ -169,14 +255,10 @@ export class HDTEngine {
     // ---------------------------------------------------------
     // FUSION STATE & THREAT LEVEL ASSIGNMENT
     // ---------------------------------------------------------
-    // Calculate the weighted fusion score. Extreme layers amplify the warning.
-    // In our real-time engine, we look at the maximum triggered security anomaly
-    // as well as the average, modeling a hybrid boolean OR / max fusion filter
-    const maxLayerScore = Math.max(l1_gmm, l2_kde, l3_lowess, this.ads);
-    const avgLayerScore = (l1_gmm + l2_kde + l3_lowess + this.ads) / 4;
-    
-    // Joint fusion score: favors max triggers while preserving general state averages
-    const fusion = Math.min(1.0, maxLayerScore * 0.7 + avgLayerScore * 0.3);
+    // Calculate weighted fusion score using configurable weights
+    const maxLayerScore = Math.max(l1_gmm, l2_kde, l3_lowess, ads);
+    const weightedScore = (l1_gmm * this.w1_gmm) + (l2_kde * this.w2_kde) + (l3_lowess * this.w3_lowess) + (ads * this.w4_ads);
+    const fusion = Math.min(1.0, maxLayerScore * 0.7 + weightedScore * 0.3);
 
     let alert: ThreatLevel = "MONITORING";
     if (fusion >= 0.65) {
@@ -191,7 +273,7 @@ export class HDTEngine {
       l1_gmm,
       l2_kde,
       l3_lowess,
-      ads: this.ads,
+      ads: ads,
       fusion,
       alert,
       obsCount: this.obsCount

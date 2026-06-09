@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { 
-  Shield, Activity, Cpu, Clock, Terminal, Zap, Layers, RefreshCw, AlertTriangle
+  Shield, Activity, Cpu, Clock, Terminal, Zap, Layers, RefreshCw, AlertTriangle,
+  Eye, Radar, Skull, Globe, Tag
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -53,6 +54,53 @@ export default function App() {
     const m = Math.floor((seconds % 3600) / 60);
     const s = seconds % 60;
     return `${h.toString().padStart(2, "0")}h ${m.toString().padStart(2, "0")}m ${s.toString().padStart(2, "0")}s`;
+  };
+
+  const getAttackType = (payloadLabel: string) => {
+    const uppercaseLabel = payloadLabel.toUpperCase();
+    if (uppercaseLabel.includes("NMAP-PORT-SWEEP")) return "Nmap Port Sweep";
+    if (uppercaseLabel.includes("NMAP-SYN-PROBE")) return "Nmap SYN Probe";
+    if (uppercaseLabel.includes("HTTP-PROBE")) return "HTTP Probe";
+    if (uppercaseLabel.includes("NETCAT-MANUAL")) return "Netcat Manual";
+    if (uppercaseLabel.includes("SLOW-EXFIL")) return "Slow Exfiltration";
+    if (uppercaseLabel.includes("BASELINE-POISON")) return "Baseline Poisoning";
+    if (uppercaseLabel.includes("RECON-SWEEP")) return "Recon Sweep Mode";
+    if (uppercaseLabel.includes("UNKNOWN-PROBE")) return "Unknown Probe";
+    if (uppercaseLabel.includes("BASELINE")) return "Baseline Traffic";
+    if (uppercaseLabel.includes("EXFIL")) return "Exfiltration (L&S)";
+    if (uppercaseLabel.includes("POISON")) return "GMM Poisoning";
+    if (uppercaseLabel.includes("RECON") || uppercaseLabel.includes("SWEEP")) return "Recon Sweep Mode";
+    if (uppercaseLabel.includes("MANUAL")) return "Manual TCP Injection";
+    return payloadLabel || "Generic Stream";
+  };
+
+  const getAttackBadge = (payloadLabel: string) => {
+    const uppercaseLabel = payloadLabel.toUpperCase();
+    if (uppercaseLabel.includes("SLOW-EXFIL")) {
+      return { label: "SLOW-EXFIL", icon: <AlertTriangle className="w-3 h-3" />, className: "bg-red-950/40 text-red-300 border border-red-500/20" };
+    }
+    if (uppercaseLabel.includes("BASELINE-POISON")) {
+      return { label: "BASELINE-POISON", icon: <Skull className="w-3 h-3" />, className: "bg-purple-950/40 text-purple-300 border border-purple-500/20" };
+    }
+    if (uppercaseLabel.includes("RECON-SWEEP")) {
+      return { label: "RECON-SWEEP", icon: <Radar className="w-3 h-3" />, className: "bg-yellow-950/40 text-yellow-300 border border-yellow-500/20" };
+    }
+    if (uppercaseLabel.includes("NMAP-PORT-SWEEP")) {
+      return { label: "NMAP-PORT-SWEEP", icon: <Eye className="w-3 h-3" />, className: "bg-orange-950/40 text-orange-300 border border-orange-500/20" };
+    }
+    if (uppercaseLabel.includes("NMAP-SYN-PROBE")) {
+      return { label: "NMAP-SYN-PROBE", icon: <Zap className="w-3 h-3" />, className: "bg-orange-950/40 text-orange-300 border border-orange-500/20" };
+    }
+    if (uppercaseLabel.includes("NETCAT-MANUAL")) {
+      return { label: "NETCAT-MANUAL", icon: <Terminal className="w-3 h-3" />, className: "bg-cyan-950/40 text-cyan-300 border border-cyan-500/20" };
+    }
+    if (uppercaseLabel.includes("HTTP-PROBE")) {
+      return { label: "HTTP-PROBE", icon: <Globe className="w-3 h-3" />, className: "bg-sky-950/40 text-sky-300 border border-sky-500/20" };
+    }
+    if (uppercaseLabel.includes("UNKNOWN-PROBE")) {
+      return { label: "UNKNOWN-PROBE", icon: <Shield className="w-3 h-3" />, className: "bg-slate-950/40 text-slate-300 border border-slate-500/20" };
+    }
+    return { label: getAttackType(payloadLabel), icon: <Tag className="w-3 h-3" />, className: "bg-slate-950/30 text-slate-300 border border-slate-500/20" };
   };
 
   // React states mirroring engine metrics
@@ -763,8 +811,11 @@ export default function App() {
                               <div className="text-[10px] text-slate-500">
                                 Size: {formatBytes(log.byteCount)} | Port: {log.dstPort}
                               </div>
-                              <div className="text-[9px] text-slate-600 mt-1 truncate">
-                                {log.payloadLabel}
+                              <div className="text-[9px] text-slate-600 mt-1 truncate flex items-center gap-2">
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${getAttackBadge(log.payloadLabel).className}`}>
+                                  {getAttackBadge(log.payloadLabel).icon}
+                                  {getAttackBadge(log.payloadLabel).label}
+                                </span>
                               </div>
                               {isBlocked && (
                                 <div className="absolute inset-0 bg-[#07090D]/50 flex items-center justify-center backdrop-blur-xs font-bold text-[10px] text-red-400 uppercase tracking-widest">

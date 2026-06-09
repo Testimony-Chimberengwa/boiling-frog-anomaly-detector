@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, ShieldAlert, Cpu, Layers, Ban, Lock, Unlock, Loader2, Sparkles, TrendingUp } from "lucide-react";
+import { X, ShieldAlert, Cpu, Layers, Ban, Lock, Unlock, Loader2, Sparkles, TrendingUp, Terminal, Eye, Radar, Skull, Globe, Zap } from "lucide-react";
 import { LogEntry } from "../types";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
@@ -70,6 +70,88 @@ export default function ForensicsModal({
   const isBlocked = blockedIps.includes(ip);
   const s = selectedLog.scores;
 
+  const getForensicsAttackInfo = (payloadLabel: string) => {
+    const upper = payloadLabel.toUpperCase();
+    if (upper.includes("NMAP-PORT-SWEEP")) {
+      return {
+        found: true,
+        header: "Nmap Port Sweep Detected",
+        desc: "Sequential port sweep detected across monitored range — consistent with horizontal network reconnaissance using a connect-scan profile.",
+        badgeColor: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+        icon: <Eye className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("NMAP-SYN-PROBE")) {
+      return {
+        found: true,
+        header: "Nmap SYN Probe Detected",
+        desc: "Nmap-style SYN reconnaissance identified via minimal/empty TCP payloads and immediate connection reset behavior.",
+        badgeColor: "border-orange-500/30 bg-orange-500/10 text-orange-300",
+        icon: <Zap className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("HTTP-PROBE")) {
+      return {
+        found: true,
+        header: "HTTP Probe Detected",
+        desc: "Application-layer HTTP probe traffic was observed, indicating reconnaissance attempts over the listener sockets.",
+        badgeColor: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+        icon: <Globe className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("NETCAT-MANUAL")) {
+      return {
+        found: true,
+        header: "Netcat Manual Probe Detected",
+        desc: "Manual TCP stream injection detected — low-volume printable payload consistent with interactive netcat or telnet probing.",
+        badgeColor: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+        icon: <Terminal className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("SLOW-EXFIL")) {
+      return {
+        found: true,
+        header: "Slow Data Exfiltration Trace",
+        desc: "Incremental byte multipliers ascending over standard observation timeline, pointing to low-frequency asset stealing.",
+        badgeColor: "border-rose-500/30 bg-rose-500/10 text-rose-400",
+        icon: <ShieldAlert className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("BASELINE-POISON")) {
+      return {
+        found: true,
+        header: "Baseline Poisoning Attempt",
+        desc: "Progressive packet mutations attempting to slowly adapt core GMM bounds to corrupt future outlier identification.",
+        badgeColor: "border-purple-500/30 bg-purple-500/10 text-purple-400",
+        icon: <Skull className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("RECON-SWEEP")) {
+      return {
+        found: true,
+        header: "Recon Sweep Mode",
+        desc: "Multi-port search script targeting active listener ports with microscopic query envelopes.",
+        badgeColor: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
+        icon: <Radar className="w-3 h-3" />
+      };
+    }
+    if (upper.includes("UNKNOWN-PROBE")) {
+      return {
+        found: true,
+        header: "Unknown Probe Detected",
+        desc: "A suspicious connection was observed without a clear payload profile; treat it as a reconnaissance candidate.",
+        badgeColor: "border-slate-500/30 bg-slate-500/10 text-slate-300",
+        icon: <ShieldAlert className="w-3 h-3" />
+      };
+    }
+    return { found: false, header: "Nominal Background Flow", desc: "Payload profiles match standard expected variance models with stable regression slopes.", badgeColor: "border-emerald-500/20 bg-emerald-500/10 text-emerald-400", icon: <ShieldAlert className="w-3 h-3" /> };
+  };
+
+  const attackInfo = getForensicsAttackInfo(selectedLog.payloadLabel);
+  let attackHeader = attackInfo.header;
+  let attackDesc = attackInfo.desc;
+  let badgeColor = attackInfo.badgeColor;
+
   const formatBytes = (n: number) => {
     if (n >= 1048576) return `${(n / 1048576).toFixed(2)} MB`;
     if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -99,27 +181,24 @@ export default function ForensicsModal({
       displayBytes: formatBytes(l.byteCount)
     }));
 
-  // Map attack description
-  let attackHeader = "Nominal Background Flow";
-  let attackDesc = "Payload profiles match standard expected variance models with stable regression slopes.";
-  let badgeColor = "border-emerald-500/20 bg-emerald-500/10 text-emerald-400";
-
-  if (s.l3_lowess > 0.45) {
-    attackHeader = "Slow Data Exfiltration Trace";
-    attackDesc = "Incremental byte multipliers ascending over standard observation timeline, pointing to low-frequency asset stealing.";
-    badgeColor = "border-rose-500/30 bg-rose-500/10 text-rose-400";
-  } else if (s.ads > 0.45) {
-    attackHeader = "Dynamic Baseline Poisoning Trace";
-    attackDesc = "Progressive packet mutations attempting to slowly adapt core GMM bounds to corrupt future outlier identification.";
-    badgeColor = "border-purple-500/30 bg-purple-500/10 text-purple-400";
-  } else if (s.l2_kde > 0.45) {
-    attackHeader = "Horizontal Socket Reconnaissance Sweep";
-    attackDesc = "Multi-port search script targeting active listener ports with microscopic query envelopes.";
-    badgeColor = "border-yellow-500/30 bg-yellow-500/10 text-yellow-400";
-  } else if (s.alert === "LOW" || s.alert === "MEDIUM") {
-    attackHeader = "Secondary Baseline Deviation";
-    attackDesc = "Marginal packet deviations or standard user session flux outside GMM bounds.";
-    badgeColor = "border-amber-500/30 bg-amber-500/10 text-amber-400";
+  if (!attackInfo.found) {
+    if (s.l3_lowess > 0.45) {
+      attackHeader = "Slow Data Exfiltration Trace";
+      attackDesc = "Incremental byte multipliers ascending over standard observation timeline, pointing to low-frequency asset stealing.";
+      badgeColor = "border-rose-500/30 bg-rose-500/10 text-rose-400";
+    } else if (s.ads > 0.45) {
+      attackHeader = "Dynamic Baseline Poisoning Trace";
+      attackDesc = "Progressive packet mutations attempting to slowly adapt core GMM bounds to corrupt future outlier identification.";
+      badgeColor = "border-purple-500/30 bg-purple-500/10 text-purple-400";
+    } else if (s.l2_kde > 0.45) {
+      attackHeader = "Horizontal Socket Reconnaissance Sweep";
+      attackDesc = "Multi-port search script targeting active listener ports with microscopic query envelopes.";
+      badgeColor = "border-yellow-500/30 bg-yellow-500/10 text-yellow-400";
+    } else if (s.alert === "LOW" || s.alert === "MEDIUM") {
+      attackHeader = "Secondary Baseline Deviation";
+      attackDesc = "Marginal packet deviations or standard user session flux outside GMM bounds.";
+      badgeColor = "border-amber-500/30 bg-amber-500/10 text-amber-400";
+    }
   }
 
   return (

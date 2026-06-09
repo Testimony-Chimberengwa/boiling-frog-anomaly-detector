@@ -44,6 +44,58 @@ async function startServer() {
   // Per-source HDT engine instances
   const engineMap: Map<string, HDTEngine> = new Map();
 
+  const connectionHistory = new Map<string, { port: number; timestamp: number; byteCount: number }[]>();
+
+  const isPrintableAscii = (payload: string) => /^[\x20-\x7E\r\n\t]*$/.test(payload);
+
+  const classifyPayloadLabel = (rawPayload: string, byteCount: number, srcIp: string, dstPort: number) => {
+    const normalized = (rawPayload || "").toString();
+    const trimmed = normalized.trim();
+    const upper = trimmed.toUpperCase();
+    const now = Date.now();
+
+    const recentEvents = (connectionHistory.get(srcIp) || [])
+      .filter(event => now - event.timestamp <= 30000 && event.byteCount < 200);
+
+    if (byteCount < 200) {
+      const existingIndex = recentEvents.findIndex(event => event.port === dstPort && event.byteCount === 0);
+      if (existingIndex >= 0) {
+        recentEvents[existingIndex] = { port: dstPort, timestamp: now, byteCount };
+      } else {
+        recentEvents.push({ port: dstPort, timestamp: now, byteCount });
+      }
+    }
+
+    connectionHistory.set(srcIp, recentEvents);
+
+    const distinctPorts = new Set(recentEvents.map(e => e.port));
+    if (byteCount === 0) {
+      return distinctPorts.size >= 2 ? "NMAP-PORT-SWEEP" : "NMAP-SYN-PROBE";
+    }
+
+    if (distinctPorts.size >= 2) {
+      return "NMAP-PORT-SWEEP";
+    }
+
+    if (byteCount < 10) {
+      return "NMAP-SYN-PROBE";
+    }
+
+    if (/^(GET|POST|HTTP)\b/.test(upper)) {
+      return "HTTP-PROBE";
+    }
+
+    if (byteCount > 0 && byteCount <= 512 && trimmed.length > 0 && isPrintableAscii(trimmed) && !upper.includes("EXFIL") && !upper.includes("POISON") && !upper.includes("RECON")) {
+      return "NETCAT-MANUAL";
+    }
+
+    if (upper.includes("EXFIL")) return "SLOW-EXFIL";
+    if (upper.includes("POISON")) return "BASELINE-POISON";
+    if (upper.includes("RECON") || upper.includes("SWEEP") || upper.includes("PROBE")) return "RECON-SWEEP";
+
+    return "UNKNOWN-PROBE";
+  };
+
   // Start TCP listeners on ports 5001-5010 so the web app can accept live connections
   function startTcpListeners() {
     const PORT_START = 5001;
@@ -52,6 +104,17 @@ async function startServer() {
     for (let port = PORT_START; port <= PORT_END; port++) {
       try {
         const server = net.createServer((socket) => {
+          // Record connection attempt immediately at connect time, not at end time.
+          let srcIpEarly: string = socket.remoteAddress || "unknown";
+          if (typeof srcIpEarly === "string" && srcIpEarly.startsWith("::ffff:")) {
+            srcIpEarly = srcIpEarly.replace("::ffff:", "");
+          }
+          const now = Date.now();
+          const existing = connectionHistory.get(srcIpEarly) || [];
+          const recentHistory = existing.filter(event => now - event.timestamp <= 30000);
+          recentHistory.push({ port, timestamp: now, byteCount: 0 });
+          connectionHistory.set(srcIpEarly, recentHistory);
+
           const chunks: Buffer[] = [];
 
           socket.on("data", (chunk: Buffer) => {
@@ -69,13 +132,7 @@ async function startServer() {
               const dstPort = port;
               const byteCount = data.length;
               const rawPayload = data.toString("utf8");
-
-              // Simple payload classification (matches Python classify_payload checks)
-              const up = rawPayload.toUpperCase();
-              let payloadLabel = "TCP-STREAM";
-              if (up.includes("EXFIL")) payloadLabel = "SLOW-EXFIL";
-              else if (up.includes("POISON")) payloadLabel = "BASELINE-POISON";
-              else if (up.includes("RECON") || up.includes("SWEEP") || up.includes("PROBE")) payloadLabel = "RECON-SWEEP";
+              const payloadLabel = classifyPayloadLabel(rawPayload, byteCount, srcIp as string, dstPort);
 
               // Build a connection record compatible with src/types.ts
               const conn = {
@@ -148,6 +205,8 @@ async function startServer() {
       return res.status(400).json({ error: "Missing required fields: srcIp, dstPort, byteCount" });
     }
 
+    const normalizedRawPayload = rawPayload || "";
+    const resolvedLabel = payloadLabel || classifyPayloadLabel(normalizedRawPayload, Number(byteCount), srcIp, Number(dstPort));
     const observation = {
       id: `live_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       srcIp,
@@ -155,8 +214,8 @@ async function startServer() {
       dstPort: Number(dstPort),
       byteCount: Number(byteCount),
       timestamp: timestamp || new Date().toLocaleTimeString(),
-      payloadLabel: payloadLabel || "LOCAL-CAPTURE",
-      rawPayload: rawPayload || ""
+      payloadLabel: resolvedLabel,
+      rawPayload: normalizedRawPayload
     };
 
     liveObservations.push(observation);
@@ -363,7 +422,8 @@ Evaluation parameters:
 - Joint Fusion Score: ${scores.fusion.toFixed(4)}
 - Final Alert Level: ${scores.alert}
 
-Write a professional, concise, single-paragraph technical analyst assessment of the threat category, potential threat agent intent, and the recommended forensic mitigation path. Make sure your tone is highly objective, clinical, and expert. Do not include flowery language, or pre-headers like "Analysis:". Just give the text paragraph directly. Keep it within 100-120 words. If the joint fusion score is high, mention the suspected cyber-attack vectors (e.g. slowed data exfiltration, baseline poisoning, sweep probe).`;
+Possible attack labels include NMAP-SYN-PROBE, HTTP-PROBE, NETCAT-MANUAL, NMAP-PORT-SWEEP, SLOW-EXFIL, BASELINE-POISON, RECON-SWEEP, or UNKNOWN-PROBE.
+Write a professional, concise, single-paragraph technical analyst assessment of the threat category, potential threat agent intent, and the recommended forensic mitigation path. Make sure your tone is highly objective, clinical, and expert. Do not include flowery language, or pre-headers like "Analysis:". Just give the text paragraph directly. Keep it within 100-120 words. If the joint fusion score is high, mention the suspected cyber-attack vectors (e.g. slowed data exfiltration, baseline poisoning, nmap sweep, netcat probe, or HTTP reconnaissance).`;
 
       const client = getGeminiClient();
       const response = await client.models.generateContent({
@@ -378,11 +438,28 @@ Write a professional, concise, single-paragraph technical analyst assessment of 
       
       // Dynamic local analyst engine to provide rich reports even without API keys
       let attackType = "Suspicious Host Behavior";
-      let intent = "Undetermined reconnaissance Probe";
+      let intent = "Undetermined reconnaissance probe";
       let recs = "Analyze ingress flow packets, verify source routes, and monitor for GMM shift outliers.";
-      
+      const payloadLabel = (req.body.payloadLabel || "").toString().toUpperCase();
       const s = req.body.scores || { fusion: 0, l1_gmm: 0, l2_kde: 0, l3_lowess: 0, ads: 0, alert: "MONITORING" };
-      if (s.l3_lowess > 0.45) {
+
+      if (payloadLabel.includes("NMAP-PORT-SWEEP")) {
+        attackType = "Nmap Port Sweep";
+        intent = "Horizontal TCP connect scanning across the monitored ports to discover live services.";
+        recs = "Block the scanning source, enforce port restrictions on 5001-5010, and review connection attempt logs for the attacker IP.";
+      } else if (payloadLabel.includes("NMAP-SYN-PROBE")) {
+        attackType = "Nmap SYN Probe";
+        intent = "Automated TCP SYN reconnaissance to identify open listener sockets without full payload exchange.";
+        recs = "Flag the source for network scan inspection and apply inline SYN rate limiting to protect the listener range.";
+      } else if (payloadLabel.includes("HTTP-PROBE")) {
+        attackType = "HTTP Probe";
+        intent = "Application-layer reconnaissance attempting to elicit HTTP responses from the target service.";
+        recs = "Capture HTTP headers, audit exposed endpoints, and restrict anonymous HTTP access to sensitive sockets.";
+      } else if (payloadLabel.includes("NETCAT-MANUAL")) {
+        attackType = "Netcat Manual Probe";
+        intent = "Interactive TCP payload probing consistent with manual netcat or telnet session activity.";
+        recs = "Inspect the source host for lateral movement tools and isolate low-volume interactive sessions.";
+      } else if (s.l3_lowess > 0.45) {
         attackType = "Slow Data Exfiltration";
         intent = "Stealthy exfiltration of database assets or telemetry payloads designed to evade high-frequency thresholds";
         recs = "Deploy egress rate limiters on outbound ports, isolate host ${req.body.ip || 'target'}, and initiate full payload packet capture.";

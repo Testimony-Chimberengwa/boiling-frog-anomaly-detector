@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { 
   Search, ShieldAlert, Cpu, Layers, Tag, Radio, Clock, ShieldCheck,
+  Terminal, Eye, Radar, Skull, Globe, Zap,
   ChevronUp, ChevronDown, ArrowUpDown, Filter, AlertTriangle, PlayCircle
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -43,12 +44,49 @@ export default function AlertsTab({ logs, onOpenDetail, blockedIps }: AlertsTabP
   // Convert raw payload labels into crisp, human-readable attack labels
   const getAttackType = (payloadLabel: string) => {
     const uppercaseLabel = payloadLabel.toUpperCase();
+    if (uppercaseLabel.includes("NMAP-PORT-SWEEP")) return "Nmap Port Sweep";
+    if (uppercaseLabel.includes("NMAP-SYN-PROBE")) return "Nmap SYN Probe";
+    if (uppercaseLabel.includes("HTTP-PROBE")) return "HTTP Probe";
+    if (uppercaseLabel.includes("NETCAT-MANUAL")) return "Netcat Manual";
+    if (uppercaseLabel.includes("SLOW-EXFIL")) return "Slow Exfiltration";
+    if (uppercaseLabel.includes("BASELINE-POISON")) return "Baseline Poisoning";
+    if (uppercaseLabel.includes("RECON-SWEEP")) return "Recon Sweep Mode";
+    if (uppercaseLabel.includes("UNKNOWN-PROBE")) return "Unknown Probe";
     if (uppercaseLabel.includes("BASELINE")) return "Baseline Traffic";
     if (uppercaseLabel.includes("EXFIL")) return "Exfiltration (L&S)";
     if (uppercaseLabel.includes("POISON")) return "GMM Poisoning";
     if (uppercaseLabel.includes("RECON") || uppercaseLabel.includes("SWEEP")) return "Recon Sweep Mode";
     if (uppercaseLabel.includes("MANUAL")) return "Manual TCP Injection";
     return payloadLabel || "Generic Stream";
+  };
+
+  const getAttackBadge = (payloadLabel: string) => {
+    const uppercaseLabel = payloadLabel.toUpperCase();
+    if (uppercaseLabel.includes("SLOW-EXFIL")) {
+      return { label: "SLOW-EXFIL", icon: <AlertTriangle className="w-3 h-3" />, className: "bg-red-950/40 text-red-300 border border-red-500/20" };
+    }
+    if (uppercaseLabel.includes("BASELINE-POISON")) {
+      return { label: "BASELINE-POISON", icon: <Skull className="w-3 h-3" />, className: "bg-purple-950/40 text-purple-300 border border-purple-500/20" };
+    }
+    if (uppercaseLabel.includes("RECON-SWEEP")) {
+      return { label: "RECON-SWEEP", icon: <Radar className="w-3 h-3" />, className: "bg-yellow-950/40 text-yellow-300 border border-yellow-500/20" };
+    }
+    if (uppercaseLabel.includes("NMAP-PORT-SWEEP")) {
+      return { label: "NMAP-PORT-SWEEP", icon: <Eye className="w-3 h-3" />, className: "bg-orange-950/40 text-orange-300 border border-orange-500/20" };
+    }
+    if (uppercaseLabel.includes("NMAP-SYN-PROBE")) {
+      return { label: "NMAP-SYN-PROBE", icon: <Zap className="w-3 h-3" />, className: "bg-orange-950/40 text-orange-300 border border-orange-500/20" };
+    }
+    if (uppercaseLabel.includes("NETCAT-MANUAL")) {
+      return { label: "NETCAT-MANUAL", icon: <Terminal className="w-3 h-3" />, className: "bg-cyan-950/40 text-cyan-300 border border-cyan-500/20" };
+    }
+    if (uppercaseLabel.includes("HTTP-PROBE")) {
+      return { label: "HTTP-PROBE", icon: <Globe className="w-3 h-3" />, className: "bg-sky-950/40 text-sky-300 border border-sky-500/20" };
+    }
+    if (uppercaseLabel.includes("UNKNOWN-PROBE")) {
+      return { label: "UNKNOWN-PROBE", icon: <ShieldCheck className="w-3 h-3" />, className: "bg-slate-950/40 text-slate-300 border border-slate-500/20" };
+    }
+    return { label: getAttackType(payloadLabel), icon: <Tag className="w-3 h-3" />, className: "bg-slate-950/30 text-slate-300 border border-slate-500/20" };
   };
 
   // Compile active alerts (non-monitoring level) data
@@ -326,7 +364,7 @@ export default function AlertsTab({ logs, onOpenDetail, blockedIps }: AlertsTabP
               </thead>
               <tbody className="divide-y divide-[#1F2937]/30">
                 {sortedLogs.map((log) => {
-                  const attackType = getAttackType(log.payloadLabel);
+                  const badge = getAttackBadge(log.payloadLabel);
                   const isBlocked = blockedIps.includes(log.srcIp);
                   
                   return (
@@ -354,7 +392,10 @@ export default function AlertsTab({ logs, onOpenDetail, blockedIps }: AlertsTabP
                         </span>
                       </td>
                       <td className="py-3 pr-2 font-sans text-xs text-slate-300 font-medium">
-                        {attackType}
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-bold uppercase ${badge.className}`}>
+                          {badge.icon}
+                          {badge.label}
+                        </span>
                       </td>
                       <td className={`py-3 pr-2 text-right font-mono ${log.scores.l1_gmm > 0.5 ? "text-amber-400" : "text-slate-500"}`}>
                         {log.scores.l1_gmm.toFixed(3)}
