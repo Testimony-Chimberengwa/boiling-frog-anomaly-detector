@@ -1,0 +1,6 @@
+{
+  "name": "Boiling Frog Anomaly Detector",
+  "description": "Interactive real-time simulator and visual dashboard for the Hybrid Detection Tapestry (HDT) model, designed to detect slow, incremental cyberattacks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

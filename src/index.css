@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: #0b0e14;
+  color: #e2e8f0;
+  font-family: var(--font-sans);
+}
+
+.glass {
+  background: rgba(22, 27, 34, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.grid-dots {
+  background-image: radial-gradient(#ffffff0a 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.status-led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.led-red {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.led-green {
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+}
+
+/* Custom terminal scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090e15;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes flash-green { 0%, 100% { border-color: rgba(16, 185, 129, 0.2); background-color: transparent; } 50% { border-color: rgba(16, 185, 129, 0.8); background-color: rgba(16, 185, 129, 0.1); } }
+@keyframes flash-red { 0%, 100% { border-color: rgba(239, 68, 68, 0.2); background-color: transparent; } 50% { border-color: rgba(239, 68, 68, 0.8); background-color: rgba(239, 68, 68, 0.1); } }
+@keyframes flash-purple { 0%, 100% { border-color: rgba(168, 85, 247, 0.2); background-color: transparent; } 50% { border-color: rgba(168, 85, 247, 0.8); background-color: rgba(168, 85, 247, 0.1); } }
+@keyframes flash-yellow { 0%, 100% { border-color: rgba(234, 179, 8, 0.2); background-color: transparent; } 50% { border-color: rgba(234, 179, 8, 0.8); background-color: rgba(234, 179, 8, 0.1); } }
+
+.flash-port-green { animation: flash-green 0.6s ease-out; }
+.flash-port-red { animation: flash-red 0.6s ease-out; }
+.flash-port-purple { animation: flash-purple 0.6s ease-out; }
+.flash-port-yellow { animation: flash-yellow 0.6s ease-out; }
+
